@@ -7734,7 +7734,17 @@ START_TEST(touchpad_wobble_enables_hysteresis)
 	litest_drain_events(li);
 
 	litest_touch_wobble(dev, 0, 50, 50);
-	litest_drain_events(li);
+	litest_dispatch(li);
+
+	/* The wobble is purely horizontal. If hysteresis were switched on
+	 * against a stale center, the pointer would be pulled toward it
+	 * and move vertically too. */
+	struct libinput_event *event;
+	while ((event = libinput_get_event(li))) {
+		struct libinput_event_pointer *ptrev = litest_is_motion_event(event);
+		litest_assert_double_eq(libinput_event_pointer_get_dy(ptrev), 0.0);
+		libinput_event_destroy(event);
+	}
 
 	/* 3 units, inside the resolution/4 = 5 unit margin */
 	litest_touch_move(dev, 0, 50.2, 50);

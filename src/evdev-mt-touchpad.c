@@ -216,6 +216,11 @@ tp_detect_wobbling(struct tp_dispatch *tp, struct tp_touch *t, usec_t time)
 
 		t->hysteresis.x_motion_history |= bit(2);
 		if (t->hysteresis.x_motion_history == r_l_r) {
+			/* The center is only updated while hysteresis is
+			 * enabled, so it's stale here. Start from the last
+			 * point we sent, otherwise the pointer jumps toward
+			 * wherever the center was left */
+			t->hysteresis.center = *prev_point;
 			tp->hysteresis.state = HYSTERESIS_STATE_ACTIVE;
 			evdev_log_debug(tp->device,
 					"hysteresis enabled. "
