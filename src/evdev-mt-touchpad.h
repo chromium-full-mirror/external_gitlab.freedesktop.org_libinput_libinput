@@ -193,7 +193,8 @@ enum tp_hysteresis_state {
 	/* Off, but wobble detection may switch it on */
 	HYSTERESIS_STATE_INACTIVE = 0,
 	HYSTERESIS_STATE_ACTIVE,
-	/* Disabled by a plugin, never switched on again */
+	/* Disabled by a plugin or the AttrTouchpadHysteresis=0 quirk,
+	 * never switched on again */
 	HYSTERESIS_STATE_DISABLED,
 };
 

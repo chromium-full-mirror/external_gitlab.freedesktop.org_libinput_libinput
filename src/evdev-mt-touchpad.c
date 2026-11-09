@@ -3718,8 +3718,20 @@ tp_init_hysteresis(struct tp_dispatch *tp)
 
 	tp->hysteresis.margin.x = xmargin;
 	tp->hysteresis.margin.y = ymargin;
-	tp->hysteresis.state = (ax->fuzz || ay->fuzz) ? HYSTERESIS_STATE_ACTIVE
-						      : HYSTERESIS_STATE_INACTIVE;
+
+	bool use_hysteresis;
+	_unref_(quirks) *q = libinput_device_get_quirks(&tp->device->base);
+	if (q && quirks_get_bool(q, QUIRK_ATTR_TOUCHPAD_HYSTERESIS, &use_hysteresis)) {
+		tp->hysteresis.state = use_hysteresis ? HYSTERESIS_STATE_ACTIVE
+						      : HYSTERESIS_STATE_DISABLED;
+		if (!use_hysteresis)
+			evdev_log_debug(tp->device, "hysteresis disabled by quirk\n");
+	} else {
+		tp->hysteresis.state = (ax->fuzz || ay->fuzz)
+					       ? HYSTERESIS_STATE_ACTIVE
+					       : HYSTERESIS_STATE_INACTIVE;
+	}
+
 	if (tp->hysteresis.state == HYSTERESIS_STATE_ACTIVE)
 		evdev_log_debug(tp->device,
 				"hysteresis enabled. "
