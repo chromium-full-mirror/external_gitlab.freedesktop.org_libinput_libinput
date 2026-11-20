@@ -595,6 +595,30 @@ libinput_plugin_system_notify_device_ignored(struct libinput_plugin_system *syst
 }
 
 void
+libinput_plugin_system_notify_device_suspended(struct libinput_plugin_system *system,
+					       struct libinput_device *device)
+{
+	struct libinput_plugin *plugin;
+	list_for_each_safe(plugin, &system->plugins, link) {
+		if (plugin->interface->device_suspended)
+			plugin->interface->device_suspended(plugin, device);
+	}
+	libinput_plugin_system_drop_unregistered_plugins(system);
+}
+
+void
+libinput_plugin_system_notify_device_resumed(struct libinput_plugin_system *system,
+					     struct libinput_device *device)
+{
+	struct libinput_plugin *plugin;
+	list_for_each_safe(plugin, &system->plugins, link) {
+		if (plugin->interface->device_resumed)
+			plugin->interface->device_resumed(plugin, device);
+	}
+	libinput_plugin_system_drop_unregistered_plugins(system);
+}
+
+void
 libinput_plugin_system_notify_tablet_tool_configured(
 	struct libinput_plugin_system *system,
 	struct libinput_tablet_tool *tool)

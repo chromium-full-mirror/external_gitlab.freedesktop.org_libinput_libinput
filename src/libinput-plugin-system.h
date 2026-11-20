@@ -88,6 +88,14 @@ libinput_plugin_system_notify_device_ignored(struct libinput_plugin_system *syst
 					     struct libinput_device *device);
 
 void
+libinput_plugin_system_notify_device_suspended(struct libinput_plugin_system *system,
+					       struct libinput_device *device);
+
+void
+libinput_plugin_system_notify_device_resumed(struct libinput_plugin_system *system,
+					     struct libinput_device *device);
+
+void
 libinput_plugin_system_notify_tablet_tool_configured(
 	struct libinput_plugin_system *system,
 	struct libinput_tablet_tool *tool);

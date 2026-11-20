@@ -2952,6 +2952,12 @@ evdev_device_suspend(struct evdev_device *device)
 {
 	struct libinput *libinput = evdev_libinput_context(device);
 
+	/* A device may already be suspended, only notify the plugins if
+	 * we are about to close the fd */
+	if (device->fd != -1)
+		libinput_plugin_system_notify_device_suspended(&libinput->plugin_system,
+							       &device->base);
+
 	if (device->dispatch->interface->suspend)
 		device->dispatch->interface->suspend(device->dispatch, device);
 
@@ -3018,6 +3024,9 @@ evdev_device_resume(struct evdev_device *device)
 	device->source = libinput_add_fd(libinput, fd, evdev_device_dispatch, device);
 	if (!device->source)
 		return -ENOMEM;
+
+	libinput_plugin_system_notify_device_resumed(&libinput->plugin_system,
+						     &device->base);
 
 	evdev_notify_resumed_device(device);
 

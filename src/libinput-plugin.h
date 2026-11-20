@@ -98,6 +98,34 @@ struct libinput_plugin_interface {
 	void (*device_removed)(struct libinput_plugin *plugin,
 			       struct libinput_device *device);
 	/**
+	 * Notification that a device was suspended, i.e. libinput closed
+	 * the device and no evdev frames arrive until device_resumed.
+	 * This happens e.g. when the send events mode is disabled, when a
+	 * tablet mode switch suspends the device and before a device is
+	 * removed unless it is already suspended. A device that is
+	 * suspended as it is being added, e.g. a trackpoint added while the
+	 * tablet mode switch is on, gets this callback after device_new but
+	 * before device_added.
+	 *
+	 * libinput returns the device to a neutral state itself without
+	 * passing any events through the plugins. Plugins should reset
+	 * their per-device event state and cancel any per-device timers.
+	 * This callback must not queue frames, doing so is logged as a
+	 * plugin bug and the plugin is unregistered.
+	 */
+	void (*device_suspended)(struct libinput_plugin *plugin,
+				 struct libinput_device *device);
+	/**
+	 * Notification that a previously suspended device was resumed.
+	 * Any events that happened while the device was suspended were
+	 * not seen by the plugin, so the first events after the resume
+	 * may be e.g. releases for buttons the plugin never saw pressed.
+	 * This callback must not queue frames, doing so is logged as a
+	 * plugin bug and the plugin is unregistered.
+	 */
+	void (*device_resumed)(struct libinput_plugin *plugin,
+			       struct libinput_device *device);
+	/**
 	 * Notification that a device submitted a frame event.
 	 */
 	void (*evdev_frame)(struct libinput_plugin *plugin,
