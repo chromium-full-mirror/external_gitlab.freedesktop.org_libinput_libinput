@@ -558,18 +558,14 @@ START_TEST(device_disable_release_buttons_reenable)
 	litest_assert_enum_eq(status, LIBINPUT_CONFIG_STATUS_SUCCESS);
 	litest_assert_empty_queue(li);
 
-	/* The debounce plugin did not see the release while the device was
-	 * disabled and still thinks the button is down, so it swallows the
-	 * next press */
+	/* The first click after re-enabling must come through as a normal
+	 * press/release and not be swallowed by stale button state */
 	litest_button_click_debounced(dev, li, BTN_LEFT, true);
-	litest_assert_empty_queue(li);
-
-	/* Its release is discarded, we never saw the press */
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_PRESSED);
 	litest_button_click_debounced(dev, li, BTN_LEFT, false);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_RELEASED);
 	litest_assert_empty_queue(li);
 
-	/* The next click must come through as a normal press/release
-	 * and not be swallowed by stale button state */
 	litest_button_click_debounced(dev, li, BTN_LEFT, true);
 	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_PRESSED);
 	litest_button_click_debounced(dev, li, BTN_LEFT, false);

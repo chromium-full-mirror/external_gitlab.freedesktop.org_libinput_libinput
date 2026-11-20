@@ -1415,6 +1415,117 @@ START_TEST(tablet_mode_disable_trackpoint_on_init)
 }
 END_TEST
 
+START_TEST(tablet_mode_disable_trackpoint_button_release)
+{
+	struct litest_device *sw = litest_current_device();
+	struct litest_device *trackpoint;
+	struct libinput *li = sw->libinput;
+
+	if (!switch_has_tablet_mode(sw))
+		return LITEST_NOT_APPLICABLE;
+
+	trackpoint = litest_add_device(li, LITEST_TRACKPOINT);
+	litest_drain_events(li);
+
+	litest_button_click_debounced(trackpoint, li, BTN_LEFT, true);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_PRESSED);
+
+	litest_grab_device(sw);
+	litest_switch_action(sw, LIBINPUT_SWITCH_TABLET_MODE, LIBINPUT_SWITCH_STATE_ON);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_RELEASED);
+	litest_assert_switch_event(li,
+				   LIBINPUT_SWITCH_TABLET_MODE,
+				   LIBINPUT_SWITCH_STATE_ON);
+
+	/* physical release while the trackpoint is suspended */
+	litest_button_click_debounced(trackpoint, li, BTN_LEFT, false);
+	litest_assert_empty_queue(li);
+
+	litest_switch_action(sw,
+			     LIBINPUT_SWITCH_TABLET_MODE,
+			     LIBINPUT_SWITCH_STATE_OFF);
+	litest_assert_switch_event(li,
+				   LIBINPUT_SWITCH_TABLET_MODE,
+				   LIBINPUT_SWITCH_STATE_OFF);
+	litest_ungrab_device(sw);
+
+	litest_button_click_debounced(trackpoint, li, BTN_LEFT, true);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_PRESSED);
+	litest_button_click_debounced(trackpoint, li, BTN_LEFT, false);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_RELEASED);
+	litest_assert_empty_queue(li);
+
+	litest_device_destroy(trackpoint);
+}
+END_TEST
+
+START_TEST(tablet_mode_disable_trackpoint_while_disabled)
+{
+	struct litest_device *sw = litest_current_device();
+	struct litest_device *trackpoint;
+	struct libinput *li = sw->libinput;
+
+	if (!switch_has_tablet_mode(sw))
+		return LITEST_NOT_APPLICABLE;
+
+	trackpoint = litest_add_device(li, LITEST_TRACKPOINT);
+	litest_drain_events(li);
+
+	litest_button_click_debounced(trackpoint, li, BTN_LEFT, true);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_PRESSED);
+
+	litest_sendevents_off(trackpoint);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_RELEASED);
+	litest_button_click_debounced(trackpoint, li, BTN_LEFT, false);
+	litest_assert_empty_queue(li);
+
+	/* Suspend the already suspended trackpoint again. Nothing to see
+	 * here, this must not crash or trigger a libinput bug */
+	litest_grab_device(sw);
+	litest_switch_action(sw, LIBINPUT_SWITCH_TABLET_MODE, LIBINPUT_SWITCH_STATE_ON);
+	litest_assert_switch_event(li,
+				   LIBINPUT_SWITCH_TABLET_MODE,
+				   LIBINPUT_SWITCH_STATE_ON);
+	litest_switch_action(sw,
+			     LIBINPUT_SWITCH_TABLET_MODE,
+			     LIBINPUT_SWITCH_STATE_OFF);
+	litest_assert_switch_event(li,
+				   LIBINPUT_SWITCH_TABLET_MODE,
+				   LIBINPUT_SWITCH_STATE_OFF);
+	litest_assert_empty_queue(li);
+
+	litest_sendevents_on(trackpoint);
+	litest_assert_empty_queue(li);
+
+	litest_button_click_debounced(trackpoint, li, BTN_LEFT, true);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_PRESSED);
+	litest_button_click_debounced(trackpoint, li, BTN_LEFT, false);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_RELEASED);
+	litest_assert_empty_queue(li);
+
+	/* remove the trackpoint while suspended and within the debounce
+	 * timeout */
+	litest_event(trackpoint, EV_KEY, BTN_LEFT, 1);
+	litest_event(trackpoint, EV_SYN, SYN_REPORT, 0);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_PRESSED);
+	litest_switch_action(sw, LIBINPUT_SWITCH_TABLET_MODE, LIBINPUT_SWITCH_STATE_ON);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_RELEASED);
+	litest_assert_switch_event(li,
+				   LIBINPUT_SWITCH_TABLET_MODE,
+				   LIBINPUT_SWITCH_STATE_ON);
+
+	litest_device_destroy(trackpoint);
+	litest_timeout_debounce(li);
+	litest_assert_only_typed_events(li, LIBINPUT_EVENT_DEVICE_REMOVED);
+
+	litest_switch_action(sw,
+			     LIBINPUT_SWITCH_TABLET_MODE,
+			     LIBINPUT_SWITCH_STATE_OFF);
+	litest_ungrab_device(sw);
+	litest_assert_only_typed_events(li, LIBINPUT_EVENT_SWITCH_TOGGLE);
+}
+END_TEST
+
 START_TEST(dock_toggle)
 {
 	struct litest_device *sw = litest_current_device();
@@ -1491,6 +1602,8 @@ TEST_COLLECTION(switch)
 	litest_add(tablet_mode_enable_keyboard_on_resume, LITEST_SWITCH, LITEST_ANY);
 	litest_add(tablet_mode_disable_trackpoint, LITEST_SWITCH, LITEST_ANY);
 	litest_add(tablet_mode_disable_trackpoint_on_init, LITEST_SWITCH, LITEST_ANY);
+	litest_add(tablet_mode_disable_trackpoint_button_release, LITEST_SWITCH, LITEST_ANY);
+	litest_add(tablet_mode_disable_trackpoint_while_disabled, LITEST_SWITCH, LITEST_ANY);
 
 	litest_add(dock_toggle, LITEST_SWITCH, LITEST_ANY);
 	/* clang-format on */

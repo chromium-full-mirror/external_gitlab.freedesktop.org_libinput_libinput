@@ -4058,6 +4058,174 @@ START_TEST(debounce_remove_device_button_down)
 }
 END_TEST
 
+START_TEST(debounce_disable_during_press_timeout)
+{
+	struct litest_device *dev = litest_current_device();
+	struct libinput *li = dev->libinput;
+
+	litest_disable_middleemu(dev);
+	disable_button_scrolling(dev);
+	litest_drain_events(li);
+
+	/* Disable the device before the debounce timeout expires */
+	litest_event(dev, EV_KEY, BTN_LEFT, 1);
+	litest_event(dev, EV_SYN, SYN_REPORT, 0);
+	litest_dispatch(li);
+	litest_sendevents_off(dev);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_PRESSED);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_RELEASED);
+
+	litest_event(dev, EV_KEY, BTN_LEFT, 0);
+	litest_event(dev, EV_SYN, SYN_REPORT, 0);
+	litest_timeout_debounce(li);
+	litest_assert_empty_queue(li);
+
+	litest_sendevents_on(dev);
+	litest_assert_empty_queue(li);
+
+	litest_button_click_debounced(dev, li, BTN_LEFT, true);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_PRESSED);
+	litest_button_click_debounced(dev, li, BTN_LEFT, false);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_RELEASED);
+	litest_assert_empty_queue(li);
+}
+END_TEST
+
+START_TEST(debounce_disable_during_release_delay)
+{
+	struct litest_device *dev = litest_current_device();
+	struct libinput *li = dev->libinput;
+
+	litest_disable_middleemu(dev);
+	disable_button_scrolling(dev);
+	litest_drain_events(li);
+
+	/* A release within the debounce timeout is delayed */
+	litest_event(dev, EV_KEY, BTN_LEFT, 1);
+	litest_event(dev, EV_SYN, SYN_REPORT, 0);
+	litest_event(dev, EV_KEY, BTN_LEFT, 0);
+	litest_event(dev, EV_SYN, SYN_REPORT, 0);
+	litest_dispatch(li);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_PRESSED);
+	litest_assert_empty_queue(li);
+
+	/* Disabling releases the button. The timer for the delayed release
+	 * must be cancelled, it would expire in the reset state machine */
+	litest_sendevents_off(dev);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_RELEASED);
+	litest_assert_empty_queue(li);
+	litest_timeout_debounce(li);
+	litest_assert_empty_queue(li);
+
+	litest_sendevents_on(dev);
+	litest_assert_empty_queue(li);
+
+	litest_button_click_debounced(dev, li, BTN_LEFT, true);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_PRESSED);
+	litest_button_click_debounced(dev, li, BTN_LEFT, false);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_RELEASED);
+	litest_assert_empty_queue(li);
+}
+END_TEST
+
+START_TEST(debounce_disable_during_spurious_detection)
+{
+	struct litest_device *dev = litest_current_device();
+	struct libinput *li = dev->libinput;
+
+	litest_disable_middleemu(dev);
+	disable_button_scrolling(dev);
+	litest_drain_events(li);
+
+	litest_button_click_debounced(dev, li, BTN_LEFT, true);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_PRESSED);
+
+	/* A release after the debounce timeout is sent immediately and
+	 * starts the spurious detection timer, disable the device before
+	 * that one expires */
+	litest_event(dev, EV_KEY, BTN_LEFT, 0);
+	litest_event(dev, EV_SYN, SYN_REPORT, 0);
+	litest_dispatch(li);
+	litest_sendevents_off(dev);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_RELEASED);
+	litest_timeout_debounce(li);
+	litest_assert_empty_queue(li);
+
+	litest_sendevents_on(dev);
+	litest_button_click_debounced(dev, li, BTN_LEFT, true);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_PRESSED);
+	litest_button_click_debounced(dev, li, BTN_LEFT, false);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_RELEASED);
+	litest_assert_empty_queue(li);
+}
+END_TEST
+
+START_TEST(debounce_press_while_disabled)
+{
+	struct litest_device *dev = litest_current_device();
+	struct libinput *li = dev->libinput;
+
+	litest_disable_middleemu(dev);
+	disable_button_scrolling(dev);
+	litest_drain_events(li);
+
+	litest_button_click_debounced(dev, li, BTN_LEFT, true);
+	litest_button_click_debounced(dev, li, BTN_LEFT, false);
+	litest_drain_events(li);
+
+	/* Press while disabled, release after re-enabling. The release
+	 * is for the button debouncing last saw but it never saw this
+	 * press, the release must be discarded quietly */
+	litest_sendevents_off(dev);
+	litest_button_click_debounced(dev, li, BTN_LEFT, true);
+	litest_assert_empty_queue(li);
+	litest_sendevents_on(dev);
+	litest_button_click_debounced(dev, li, BTN_LEFT, false);
+	litest_assert_empty_queue(li);
+
+	litest_button_click_debounced(dev, li, BTN_LEFT, true);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_PRESSED);
+	litest_button_click_debounced(dev, li, BTN_LEFT, false);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_RELEASED);
+	litest_assert_empty_queue(li);
+}
+END_TEST
+
+START_TEST(debounce_spurious_survives_disable)
+{
+	struct litest_device *dev = litest_current_device();
+	struct libinput *li = dev->libinput;
+
+	litest_disable_middleemu(dev);
+	disable_button_scrolling(dev);
+	litest_drain_events(li);
+
+	debounce_trigger_spurious(dev, li);
+
+	litest_sendevents_off(dev);
+	litest_sendevents_on(dev);
+	litest_assert_empty_queue(li);
+
+	litest_event(dev, EV_KEY, BTN_LEFT, 1);
+	litest_event(dev, EV_SYN, SYN_REPORT, 0);
+	litest_timeout_debounce(li);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_PRESSED);
+
+	/* Spurious debouncing is still enabled, this bounce is filtered */
+	litest_event(dev, EV_KEY, BTN_LEFT, 0);
+	litest_event(dev, EV_SYN, SYN_REPORT, 0);
+	litest_event(dev, EV_KEY, BTN_LEFT, 1);
+	litest_event(dev, EV_SYN, SYN_REPORT, 0);
+	litest_assert_empty_queue(li);
+
+	litest_event(dev, EV_KEY, BTN_LEFT, 0);
+	litest_event(dev, EV_SYN, SYN_REPORT, 0);
+	litest_timeout_debounce(li);
+	litest_assert_button_event(li, BTN_LEFT, LIBINPUT_BUTTON_STATE_RELEASED);
+	litest_assert_empty_queue(li);
+}
+END_TEST
+
 TEST_COLLECTION(pointer)
 {
 	/* clang-format off */
@@ -4205,5 +4373,10 @@ TEST_COLLECTION(pointer)
 	litest_add(debounce_spurious_switch_to_otherbutton, LITEST_BUTTON, LITEST_TOUCHPAD|LITEST_NO_DEBOUNCE);
 	litest_add_no_device(debounce_remove_device_button_down);
 	litest_add_no_device(debounce_remove_device_button_up);
+	litest_add_for_device(debounce_disable_during_press_timeout, LITEST_MOUSE);
+	litest_add_for_device(debounce_disable_during_release_delay, LITEST_MOUSE);
+	litest_add_for_device(debounce_disable_during_spurious_detection, LITEST_MOUSE);
+	litest_add_for_device(debounce_press_while_disabled, LITEST_MOUSE);
+	litest_add(debounce_spurious_survives_disable, LITEST_BUTTON, LITEST_TOUCHPAD|LITEST_NO_DEBOUNCE);
 	/* clang-format off */
 }

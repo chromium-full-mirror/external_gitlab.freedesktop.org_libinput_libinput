@@ -824,6 +824,33 @@ debounce_plugin_device_removed(struct libinput_plugin *libinput_plugin,
 }
 
 static void
+debounce_plugin_device_suspended(struct libinput_plugin *libinput_plugin,
+				 struct libinput_device *device)
+{
+	struct plugin_data *plugin = libinput_plugin_get_user_data(libinput_plugin);
+	struct plugin_device *pd;
+	list_for_each(pd, &plugin->devices, link) {
+		if (pd->device == device) {
+			/* The device returns to neutral without us and we won't
+			 * see any events until it is resumed, so start again
+			 * like a newly added device. The first button event
+			 * after resume is then a different button and flushes
+			 * the state machine. spurious_enabled is a property of
+			 * the hardware, keep it.
+			 */
+			debounce_cancel_timer(pd);
+			debounce_cancel_timer_short(pd);
+			pd->button_usage = evdev_usage_from_uint32_t(0);
+			if (pd->state != DEBOUNCE_STATE_DISABLED) {
+				debounce_set_state(pd, DEBOUNCE_STATE_IS_UP);
+				debounce_maybe_disable(pd);
+			}
+			return;
+		}
+	}
+}
+
+static void
 debounce_plugin_feature_disabled(struct libinput_plugin *libinput_plugin,
 				 struct libinput_device *device,
 				 enum libinput_feature feature)
@@ -848,6 +875,8 @@ static const struct libinput_plugin_interface interface = {
 	.device_ignored = NULL,
 	.device_added = debounce_plugin_device_added,
 	.device_removed = debounce_plugin_device_removed,
+	.device_suspended = debounce_plugin_device_suspended,
+	.device_resumed = NULL,
 	.evdev_frame = debounce_plugin_evdev_frame,
 	.feature_disabled = debounce_plugin_feature_disabled,
 };
