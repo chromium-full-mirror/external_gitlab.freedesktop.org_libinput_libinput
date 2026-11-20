@@ -5,3 +5,14 @@ MatchName=ALPS0001:00 36B6:C001 Touchpad
 MatchUdevType=touchpad
 MatchDMIModalias=dmi:*:svnGPD:pnG1688-08:*
 AttrInputProp=-INPUT_PROP_BUTTONPAD
+
+# The GPD stylus on the Pocket 3 has no ABS_DISTANCE and has a pressure
+# floor of 47, far below the default 5% threshold (=204/4096). Lower it to
+# 24/4096 so light strokes are still coming through.
+[GPD Pocket 3 Stylus]
+MatchBus=i2c
+MatchVendor=0x27C6
+MatchProduct=0x0113
+MatchUdevType=tablet
+MatchDMIModalias=dmi:*:svnGPD:pnG1621-02:*
+AttrPressureRange=24:12
